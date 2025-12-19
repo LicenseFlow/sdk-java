@@ -61,6 +61,16 @@ public class LicenseFlowClient {
         return res;
     }
 
+    public Map<String, Object> deactivate(String licenseKey) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("license_key", licenseKey);
+        payload.put("device_id", getHardwareId());
+
+        Map<String, Object> res = post("functions/v1/deactivate-license", payload);
+        cache.clear(); // Clear cache
+        return res;
+    }
+
     private Map<String, Object> post(String path, Map<String, Object> payload) throws IOException {
         String json = gson.toJson(payload);
         RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
@@ -77,10 +87,13 @@ public class LicenseFlowClient {
 
             if (!response.isSuccessful()) {
                 String code = "UNKNOWN_ERROR";
-                if (response.code() == 429) code = "RATE_LIMIT_EXCEEDED";
-                else if (response.code() == 400 || response.code() == 404) code = "INVALID_LICENSE";
+                if (response.code() == 429)
+                    code = "RATE_LIMIT_EXCEEDED";
+                else if (response.code() == 400 || response.code() == 404)
+                    code = "INVALID_LICENSE";
 
-                String msg = (String) result.getOrDefault("message", result.getOrDefault("error", "HTTP " + response.code()));
+                String msg = (String) result.getOrDefault("message",
+                        result.getOrDefault("error", "HTTP " + response.code()));
                 throw new LicenseFlowException(msg, code, response.code());
             }
 
