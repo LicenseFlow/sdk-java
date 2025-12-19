@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 public class LicenseFlowClient {
     private final String baseUrl;
     private final String apiKey;
-    private final String jwtSecret;
     private final OkHttpClient httpClient;
     private final Gson gson = new Gson();
     private final Map<String, Map<String, Object>> cache = new HashMap<>();
@@ -19,7 +18,6 @@ public class LicenseFlowClient {
     public LicenseFlowClient(String baseUrl, String apiKey, String jwtSecret) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.apiKey = apiKey;
-        this.jwtSecret = jwtSecret;
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(10, TimeUnit.SECONDS)
@@ -83,6 +81,7 @@ public class LicenseFlowClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             String responseBody = response.body().string();
+            @SuppressWarnings("unchecked")
             Map<String, Object> result = gson.fromJson(responseBody, Map.class);
 
             if (!response.isSuccessful()) {
