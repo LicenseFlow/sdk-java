@@ -1,17 +1,25 @@
 package com.licenseflow;
 
-import okhttp3.*;
-import com.google.gson.Gson;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.Base64;
-import java.time.Instant;
+
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.util.encoders.Hex;
+
+import com.google.gson.Gson;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class LicenseFlowClient {
     private final String baseUrl;
@@ -32,7 +40,7 @@ public class LicenseFlowClient {
     public String getHardwareId() {
         try {
             return InetAddress.getLocalHost().getHostName();
-        } catch (Exception e) {
+        } catch (java.net.UnknownHostException e) {
             return "unknown-java-host";
         }
     }
@@ -84,14 +92,13 @@ public class LicenseFlowClient {
         if (ent == null)
             return false;
 
-        if (ent instanceof Boolean)
-            return (Boolean) ent;
-        if (ent instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) ent;
+        if (ent instanceof Boolean b)
+            return b;
+        if (ent instanceof Map<?, ?> map) {
             return Boolean.TRUE.equals(map.get("enabled")) || Boolean.TRUE.equals(map.get("value"));
         }
-        if (ent instanceof String) {
-            return "true".equalsIgnoreCase((String) ent);
+        if (ent instanceof String s) {
+            return "true".equalsIgnoreCase(s);
         }
         return false;
     }
@@ -122,9 +129,12 @@ public class LicenseFlowClient {
             if (!response.isSuccessful())
                 throw new IOException("Unexpected code " + response);
 
-            String body = response.body().string();
+            ResponseBody body = response.body();
+            if (body == null) return null;
+            
+            String bodyString = body.string();
             @SuppressWarnings("unchecked")
-            Map<String, Object> data = gson.fromJson(body, Map.class);
+            Map<String, Object> data = gson.fromJson(bodyString, Map.class);
 
             if (data == null || currentVersion.equals(data.get("version"))) {
                 return null;
@@ -192,9 +202,12 @@ public class LicenseFlowClient {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            String responseBody = response.body().string();
+            ResponseBody respBody = response.body();
+            String responseBodyStr = respBody != null ? respBody.string() : "{}";
+            
             @SuppressWarnings("unchecked")
-            Map<String, Object> result = gson.fromJson(responseBody, Map.class);
+            Map<String, Object> result = gson.fromJson(responseBodyStr, Map.class);
+            if (result == null) result = new HashMap<>();
 
             if (!response.isSuccessful()) {
                 String code = "UNKNOWN_ERROR";
