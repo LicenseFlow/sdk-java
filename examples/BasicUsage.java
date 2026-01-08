@@ -1,7 +1,8 @@
 package com.licenseflow.examples;
 
-import com.licenseflow.LicenseFlowClient;
 import java.util.Map;
+
+import com.licenseflow.LicenseFlowClient;
 
 public class BasicUsage {
     public static void main(String[] args) {
@@ -28,8 +29,12 @@ public class BasicUsage {
             Map<String, Object> deactivation = client.deactivate("DEMO-KEY");
             System.out.println("Result: " + deactivation);
 
+        } catch (com.licenseflow.LicenseFlowException e) {
+            System.err.println("LicenseFlow Error [" + e.getCode() + "]: " + e.getMessage());
+        } catch (java.io.IOException e) {
+            System.err.println("Network Error: " + e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("Unexpected Error: " + e.getMessage());
         }
     }
 }
