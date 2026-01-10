@@ -45,25 +45,27 @@ public class LicenseFlowClient {
         }
     }
 
-    public Map<String, Object> activate(String licenseKey, String deviceName) throws IOException {
+    public Map<String, Object> activate(String licenseKey, String deviceName, String environmentId) throws IOException {
         Map<String, Object> payload = new HashMap<>();
         payload.put("license_key", licenseKey);
         payload.put("device_id", getHardwareId());
         payload.put("device_name", deviceName);
+        if (environmentId != null) payload.put("environment_id", environmentId);
         return post("functions/v1/activate-license", payload);
     }
 
-    public Map<String, Object> verify(String licenseKey) throws IOException {
+    public Map<String, Object> verify(String licenseKey, String environmentId) throws IOException {
         String deviceId = getHardwareId();
-        String cacheKey = "verify:" + licenseKey + ":" + deviceId;
+        String cacheKey = "verify:" + licenseKey + ":" + deviceId + ":" + (environmentId != null ? environmentId : "default");
 
         if (cache.containsKey(cacheKey)) {
             return cache.get(cacheKey);
         }
 
         Map<String, Object> payload = new HashMap<>();
-        payload.put("license_key", licenseKey);
-        payload.put("device_id", deviceId);
+        payload.put("licenseKey", licenseKey);
+        payload.put("deviceId", deviceId);
+        if (environmentId != null) payload.put("environmentId", environmentId);
 
         Map<String, Object> res = post("functions/v1/verify-license", payload);
         if (Boolean.TRUE.equals(res.get("valid"))) {
@@ -72,10 +74,11 @@ public class LicenseFlowClient {
         return res;
     }
 
-    public Map<String, Object> deactivate(String licenseKey) throws IOException {
+    public Map<String, Object> deactivate(String licenseKey, String environmentId) throws IOException {
         Map<String, Object> payload = new HashMap<>();
         payload.put("license_key", licenseKey);
         payload.put("device_id", getHardwareId());
+        if (environmentId != null) payload.put("environment_id", environmentId);
 
         Map<String, Object> res = post("functions/v1/deactivate-license", payload);
         cache.clear(); // Clear cache
