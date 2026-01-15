@@ -123,6 +123,7 @@ public class LicenseFlowClient {
         Request request = new Request.Builder()
                 .url(url)
                 .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
                 .get()
                 .build();
 
@@ -201,6 +202,7 @@ public class LicenseFlowClient {
         Request request = new Request.Builder()
                 .url(baseUrl + path)
                 .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
                 .post(body)
                 .build();
 
