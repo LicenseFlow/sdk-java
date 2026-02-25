@@ -6,10 +6,38 @@
 
     <groupId>com.licenseflow</groupId>
     <artifactId>java-sdk</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>LicenseFlow Java SDK</name>
+    <description>Official Java SDK for LicenseFlow — Licensing, activation, entitlements, floating licenses, and distribution.</description>
+    <url>https://licenseflow.dev</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>LicenseFlow</name>
+            <email>hello@licenseflow.dev</email>
+            <organization>LicenseFlow</organization>
+            <organizationUrl>https://licenseflow.dev</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/licenseflow/java-sdk.git</connection>
+        <developerConnection>scm:git:ssh://github.com:licenseflow/java-sdk.git</developerConnection>
+        <url>https://github.com/licenseflow/java-sdk</url>
+    </scm>
 
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
