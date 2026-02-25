@@ -163,6 +163,52 @@ public class LicenseFlowClient {
         return post("functions/v1/artifact-download", payload);
     }
 
+    // ── Floating License Lease Methods ──
+
+    public Map<String, Object> checkoutLicense(String licenseKey, int durationSeconds, String requesterId, String requesterType) throws IOException {
+        if (requesterId == null || requesterId.isEmpty()) requesterId = getHardwareId();
+        if (requesterType == null || requesterType.isEmpty()) requesterType = "sdk";
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("license_key", licenseKey);
+        payload.put("duration_seconds", durationSeconds);
+        payload.put("requester_id", requesterId);
+        payload.put("requester_type", requesterType);
+        return post("functions/v1/checkout-license", payload);
+    }
+
+    public Map<String, Object> checkinLicense(String leaseKey) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("lease_key", leaseKey);
+        return post("functions/v1/checkin-license", payload);
+    }
+
+    public Map<String, Object> getLeaseStatus(String leaseKey) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("lease_key", leaseKey);
+        return post("functions/v1/lease-status", payload);
+    }
+
+    // ── Heartbeat ──
+
+    private volatile java.util.concurrent.ScheduledExecutorService heartbeatExecutor;
+
+    public void startHeartbeat(String licenseKey, long intervalMs) {
+        stopHeartbeat();
+        heartbeatExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        heartbeatExecutor.scheduleAtFixedRate(() -> {
+            try { verify(licenseKey, null); } catch (Exception e) {
+                System.err.println("LicenseFlow heartbeat failed: " + e.getMessage());
+            }
+        }, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
+    }
+
+    public void stopHeartbeat() {
+        if (heartbeatExecutor != null) {
+            heartbeatExecutor.shutdownNow();
+            heartbeatExecutor = null;
+        }
+    }
+
     public Map<String, Object> verifyOfflineLicense(String licenseContent, String publicKeyHex) throws Exception {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = gson.fromJson(licenseContent, Map.class);
