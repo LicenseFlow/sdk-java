@@ -7,7 +7,7 @@ import com.licenseflow.LicenseFlowClient;
 public class BasicUsage {
     public static void main(String[] args) {
         LicenseFlowClient client = new LicenseFlowClient(
-                "https://api.test",
+                "https://api.licenseflow.dev/v1",
                 "test-api-key",
                 "test-secret");
 
