@@ -21,7 +21,7 @@ import java.util.Map;
 public class Main {
     public static void main(String[] args) {
         LicenseFlowClient client = new LicenseFlowClient(
-            "https://your-project.supabase.co",
+            "https://api.licenseflow.dev/v1",
             "your-api-key",
             "your-jwt-secret"
         );
