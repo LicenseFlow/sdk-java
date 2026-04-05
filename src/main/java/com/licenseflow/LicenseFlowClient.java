@@ -209,6 +209,110 @@ public class LicenseFlowClient {
         }
     }
 
+    // ── Usage Recording ──
+
+    public Map<String, Object> recordUsage(String licenseKey, String metricName, double value, boolean increment, String environmentId) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("license_key", licenseKey);
+        payload.put("metric_name", metricName);
+        payload.put("value", value);
+        payload.put("increment", increment);
+        if (environmentId != null) payload.put("environment_id", environmentId);
+
+        Map<String, Object> res = post("functions/v1/record-usage", payload);
+        res.put("success", true);
+        return res;
+    }
+
+    // ── Credits / Usage-Based Billing ──
+
+    public Map<String, Object> consumeCredits(int amount, String description, String productId, String currency) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("amount", amount);
+        if (description != null) payload.put("description", description);
+        if (productId != null) payload.put("product_id", productId);
+        if (currency != null && !currency.equals("credits")) payload.put("currency", currency);
+        return post("functions/v1/consume-credits", payload);
+    }
+
+    public Map<String, Object> getCreditsBalance(String productId, String currency) throws IOException {
+        StringBuilder url = new StringBuilder(baseUrl + "functions/v1/get-credit-balance");
+        String sep = "?";
+        if (productId != null) { url.append(sep).append("product_id=").append(productId); sep = "&"; }
+        if (currency != null) { url.append(sep).append("currency=").append(currency); }
+
+        Request request = new Request.Builder()
+                .url(url.toString())
+                .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (body == null) return new HashMap<>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = gson.fromJson(body.string(), Map.class);
+            return data != null ? data : new HashMap<>();
+        }
+    }
+
+    // ── Entitlements Management ──
+
+    public Object listEntitlements() throws IOException {
+        Request request = new Request.Builder()
+                .url(baseUrl + "functions/v1/manage-entitlements")
+                .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (body == null) return new java.util.ArrayList<>();
+            return gson.fromJson(body.string(), java.util.List.class);
+        }
+    }
+
+    public Map<String, Object> createEntitlement(String code, String name, String dataType) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("code", code);
+        payload.put("name", name);
+        payload.put("data_type", dataType != null ? dataType : "boolean");
+        return post("functions/v1/manage-entitlements", payload);
+    }
+
+    public Map<String, Object> deleteEntitlement(String entitlementId) throws IOException {
+        Request request = new Request.Builder()
+                .url(baseUrl + "functions/v1/manage-entitlements/" + entitlementId)
+                .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .delete()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (body == null) return new HashMap<>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = gson.fromJson(body.string(), Map.class);
+            return data != null ? data : new HashMap<>();
+        }
+    }
+
+    public Map<String, Object> assignEntitlementToLicense(String entitlementId, String licenseId, Map<String, Object> value) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("license_id", licenseId);
+        payload.put("value", value);
+        return post("functions/v1/manage-entitlements/" + entitlementId + "/assign-to-license", payload);
+    }
+
+    public Map<String, Object> assignEntitlementToPolicy(String entitlementId, String policyId, Map<String, Object> defaultValue) throws IOException {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("policy_id", policyId);
+        payload.put("default_value", defaultValue);
+        return post("functions/v1/manage-entitlements/" + entitlementId + "/assign-to-policy", payload);
+    }
+
     public Map<String, Object> verifyOfflineLicense(String licenseContent, String publicKeyHex) throws Exception {
         @SuppressWarnings("unchecked")
         Map<String, Object> data = gson.fromJson(licenseContent, Map.class);
