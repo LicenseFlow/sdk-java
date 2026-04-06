@@ -1,6 +1,11 @@
-# java-sdk
+# LicenseFlow Java SDK
 
-Official Java SDK for LicenseFlow.
+[![Maven Central](https://img.shields.io/maven-central/v/com.licenseflow/java-sdk)](https://search.maven.org/artifact/com.licenseflow/java-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+**Stop Building Licensing Infrastructure. Start Shipping Software.**
+
+The official Java SDK for [LicenseFlow](https://licenseflow.dev). Protect your intellectual property, enforce entitlements, and manage software distribution with enterprise-grade security.
 
 ## Installation (Maven)
 
@@ -8,8 +13,14 @@ Official Java SDK for LicenseFlow.
 <dependency>
     <groupId>com.licenseflow</groupId>
     <artifactId>java-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>2.1.0</version>
 </dependency>
+```
+
+### Gradle
+
+```groovy
+implementation 'com.licenseflow:java-sdk:2.1.0'
 ```
 
 ## Quick Start
@@ -19,90 +30,126 @@ import com.licenseflow.LicenseFlowClient;
 import java.util.Map;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         LicenseFlowClient client = new LicenseFlowClient(
-            "https://api.licenseflow.dev/v1",
-            "your-api-key",
+            "https://api.licenseflow.dev",
+            "lf_live_xxxxxxxxxxxx",
             "your-jwt-secret"
         );
 
-        try {
-            // 1. Activate License
-            Map<String, Object> activation = client.activate("XXXX-YYYY-ZZZZ-AAAA", "My App");
-            System.out.println("Activated: " + activation.get("success"));
+        Map<String, Object> activation = client.activate("XXXX-YYYY-ZZZZ-AAAA", "My App");
+        System.out.println("Activated: " + activation.get("success"));
 
-            // 2. Verify License (Uses internal cache)
-            Map<String, Object> verification = client.verify("XXXX-YYYY-ZZZZ-AAAA");
-            System.out.println("Valid: " + verification.get("valid"));
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Map<String, Object> verification = client.verify("XXXX-YYYY-ZZZZ-AAAA");
+        System.out.println("Valid: " + verification.get("valid"));
     }
+}
+```
+
+---
+
+## API Reference
+
+### Core Methods
+
+| Method | Description |
+|--------|-------------|
+| `activate(licenseKey, deviceName)` | Activate on a device |
+| `verify(licenseKey)` | Verify license (cached) |
+| `deactivate(licenseKey)` | Deactivate from a device |
+| `recordUsage(licenseKey, metricName, value)` | Track usage metrics |
+| `getHardwareId()` | Get hostname-based device ID |
+
+### Entitlements
+
+```java
+if (client.hasFeature(verification, "ai_features")) {
+    enableAI();
+}
+
+Object limit = client.getEntitlement(verification, "max_users");
+System.out.println("User limit: " + limit);
+```
+
+### Floating Licenses (Leases)
+
+```java
+Map<String, Object> lease = client.checkoutLicense(
+    "XXXX-XXXX", 3600, "ci-runner-1", "ci_runner"
+);
+System.out.println("Lease: " + lease.get("lease_key"));
+
+client.checkinLicense((String) lease.get("lease_key"));
+Map<String, Object> status = client.getLeaseStatus((String) lease.get("lease_key"));
+```
+
+### Credits
+
+```java
+Map<String, Object> result = client.consumeCredits(100, "AI tokens", null, null);
+System.out.println("Remaining: " + result.get("remaining"));
+
+Map<String, Object> balance = client.getCreditsBalance(null, null);
+```
+
+### Release Management
+
+```java
+Map<String, Object> update = client.checkForUpdates("prod_123", "v1.0.0", "stable");
+
+if (update != null) {
+    Map<String, Object> download = client.downloadArtifact(
+        "XXXX-XXXX", (String) update.get("id"), null, "windows", "x64"
+    );
+    System.out.println("Download: " + download.get("url"));
+}
+```
+
+### Offline Licensing
+
+```java
+String licenseContent = Files.readString(Path.of("license.lic"));
+Map<String, Object> license = client.verifyOfflineLicense(licenseContent, "ORG_PUBLIC_KEY_HEX");
+System.out.println("Valid until: " + license.get("valid_until"));
+```
+
+### Heartbeat
+
+```java
+client.startHeartbeat("XXXX-XXXX", 60); // seconds
+// ... later
+client.stopHeartbeat();
+```
+
+---
+
+## Error Handling
+
+```java
+try {
+    client.activate("XXXX", "Server");
+} catch (RateLimitException e) {
+    System.err.println("Rate limit exceeded");
+} catch (InvalidLicenseException e) {
+    System.err.println("Invalid license");
+} catch (Exception e) {
+    System.err.println("Error: " + e.getMessage());
 }
 ```
 
 ## Features
 
-- **OkHttp Based**: Efficient connection pooling and retries.
-- **Auto Hardware ID**: Built-in hostname identification.
-- **Smart Caching**: In-memory verification caching.
-- **JSON Serialization**: Using Gson for lightweight parsing.
+- **OkHttp** — Efficient connection pooling and retries
+- **Gson** — Lightweight JSON serialization
+- **Thread-safe Caching** — In-memory verification cache
+- **Ed25519** — Cryptographic offline license verification
 
-## Phase 5: Entitlements
+## License
 
-Check access to specific features:
+MIT
 
-```java
-// Check boolean feature
-if (client.hasFeature(verification, "ai_features")) {
-    enableAI();
-}
+## Links
 
-// Get specific entitlement value
-Object limit = client.getEntitlement(verification, "max_users");
-System.out.println("User limit: " + limit);
-```
-
-## Phase 5: Release Management
-
-Check for updates and download artifacts:
-
-```java
-// Check for updates
-Map<String, Object> update = client.checkForUpdates("prod_123", "v1.0.0", "stable");
-
-if (update != null) {
-    System.out.println("New version available: " + update.get("version"));
-    
-    // Get download link
-    Map<String, Object> download = client.downloadArtifact(
-        "LF-KEY-123", 
-        (String) update.get("id"), 
-        null, 
-        "windows", 
-        "x64"
-    );
-    
-    System.out.println("Download URL: " + download.get("url"));
-}
-```
-
-## Phase 5: Offline Licensing
-
-Verify a license file without internet access:
-
-```java
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-String licenseContent = Files.readString(Path.of("license.lic"));
-String publicKey = "YOUR_ORG_PUBLIC_KEY_HEX";
-
-try {
-    Map<String, Object> license = client.verifyOfflineLicense(licenseContent, publicKey);
-    System.out.println("Offline license valid!");
-} catch (Exception e) {
-    System.err.println("Invalid license: " + e.getMessage());
-}
-```
+- 📖 [Documentation](https://docs.licenseflow.dev)
+- 🐛 [Issues](https://github.com/licenseflow/java-sdk/issues)
+- 🏠 [Homepage](https://licenseflow.dev)
