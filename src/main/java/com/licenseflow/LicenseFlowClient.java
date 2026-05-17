@@ -7,6 +7,8 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
@@ -24,13 +26,30 @@ import okhttp3.ResponseBody;
 public class LicenseFlowClient {
     private final String baseUrl;
     private final String apiKey;
+    private final String jwtSecret;
     private final OkHttpClient httpClient;
     private final Gson gson = new Gson();
-    private final Map<String, Map<String, Object>> cache = new HashMap<>();
+    private final long cacheTtlMs;
+
+    private static class CacheEntry {
+        final Map<String, Object> value;
+        final long expiresAt;
+        CacheEntry(Map<String, Object> value, long expiresAt) {
+            this.value = value;
+            this.expiresAt = expiresAt;
+        }
+    }
+    private final Map<String, CacheEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public LicenseFlowClient(String baseUrl, String apiKey, String jwtSecret) {
+        this(baseUrl, apiKey, jwtSecret, TimeUnit.MINUTES.toMillis(5));
+    }
+
+    public LicenseFlowClient(String baseUrl, String apiKey, String jwtSecret, long cacheTtlMs) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.apiKey = apiKey;
+        this.jwtSecret = jwtSecret;
+        this.cacheTtlMs = cacheTtlMs > 0 ? cacheTtlMs : TimeUnit.MINUTES.toMillis(5);
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(10, TimeUnit.SECONDS)
@@ -58,8 +77,12 @@ public class LicenseFlowClient {
         String deviceId = getHardwareId();
         String cacheKey = "verify:" + licenseKey + ":" + deviceId + ":" + (environmentId != null ? environmentId : "default");
 
-        if (cache.containsKey(cacheKey)) {
-            return cache.get(cacheKey);
+        CacheEntry entry = cache.get(cacheKey);
+        if (entry != null) {
+            if (System.currentTimeMillis() < entry.expiresAt) {
+                return entry.value;
+            }
+            cache.remove(cacheKey);
         }
 
         Map<String, Object> payload = new HashMap<>();
@@ -69,7 +92,7 @@ public class LicenseFlowClient {
 
         Map<String, Object> res = post("functions/v1/verify-license", payload);
         if (Boolean.TRUE.equals(res.get("valid"))) {
-            cache.put(cacheKey, res);
+            cache.put(cacheKey, new CacheEntry(res, System.currentTimeMillis() + cacheTtlMs));
         }
         return res;
     }
@@ -227,11 +250,19 @@ public class LicenseFlowClient {
     // ── Credits / Usage-Based Billing ──
 
     public Map<String, Object> consumeCredits(int amount, String description, String productId, String currency) throws IOException {
+        return consumeCredits(amount, description, productId, currency, null, null, null);
+    }
+
+    public Map<String, Object> consumeCredits(int amount, String description, String productId, String currency,
+                                              String referenceId, String referenceType, Map<String, Object> metadata) throws IOException {
         Map<String, Object> payload = new HashMap<>();
         payload.put("amount", amount);
         if (description != null) payload.put("description", description);
         if (productId != null) payload.put("product_id", productId);
         if (currency != null && !currency.equals("credits")) payload.put("currency", currency);
+        if (referenceId != null) payload.put("reference_id", referenceId);
+        if (referenceType != null) payload.put("reference_type", referenceType);
+        if (metadata != null) payload.put("metadata", metadata);
         return post("functions/v1/consume-credits", payload);
     }
 
@@ -299,6 +330,31 @@ public class LicenseFlowClient {
         }
     }
 
+    public Map<String, Object> updateEntitlement(String entitlementId, Map<String, Object> updates) throws IOException {
+        String json = gson.toJson(updates != null ? updates : new HashMap<>());
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(baseUrl + "functions/v1/manage-entitlements/" + entitlementId)
+                .addHeader("x-api-key", apiKey)
+                .addHeader("Authorization", "Bearer " + apiKey)
+                .put(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            ResponseBody respBody = response.body();
+            String responseBodyStr = respBody != null ? respBody.string() : "{}";
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = gson.fromJson(responseBodyStr, Map.class);
+            if (result == null) result = new HashMap<>();
+            if (!response.isSuccessful()) {
+                throw new LicenseFlowException(
+                    (String) result.getOrDefault("error", "HTTP " + response.code()),
+                    "UNKNOWN_ERROR", response.code());
+            }
+            return result;
+        }
+    }
+
     public Map<String, Object> assignEntitlementToLicense(String entitlementId, String licenseId, Map<String, Object> value) throws IOException {
         Map<String, Object> payload = new HashMap<>();
         payload.put("license_id", licenseId);
@@ -343,6 +399,39 @@ public class LicenseFlowClient {
         }
 
         return license;
+    }
+
+    /**
+     * Validate a signed JWT proof token offline using HS256.
+     * Returns a map with "valid":true and "payload":{...} on success,
+     * or "valid":false with an "error" field on failure.
+     */
+    public Map<String, Object> validateProofOffline(String proof, String secret) throws Exception {
+        String key = secret != null ? secret : this.jwtSecret;
+        if (key == null || key.isEmpty()) {
+            throw new Exception("JWT secret is required for offline validation");
+        }
+        Map<String, Object> result = new HashMap<>();
+        String[] parts = proof.split("\\.");
+        if (parts.length != 3) {
+            result.put("valid", false); result.put("error", "invalid token format"); return result;
+        }
+        try {
+            byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
+            byte[] expectedSig = Base64.getUrlDecoder().decode(parts[2]);
+            String signingInput = parts[0] + "." + parts[1];
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes("UTF-8"), "HmacSHA256"));
+            byte[] computedSig = mac.doFinal(signingInput.getBytes("UTF-8"));
+            if (!java.security.MessageDigest.isEqual(expectedSig, computedSig)) {
+                result.put("valid", false); result.put("error", "signature verification failed"); return result;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> payload = gson.fromJson(new String(payloadBytes, "UTF-8"), Map.class);
+            result.put("valid", true); result.put("payload", payload); return result;
+        } catch (Exception e) {
+            result.put("valid", false); result.put("error", e.getMessage()); return result;
+        }
     }
 
     private Map<String, Object> post(String path, Map<String, Object> payload) throws IOException {
