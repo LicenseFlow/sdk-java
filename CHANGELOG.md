@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2026-02-17
 
+## [2.2.0] - 2026-05-17
+
+### Added
+- `updateEntitlement(id, updates)` for PUT-style entitlement edits (parity with JS/Python/PHP/Ruby)
+- `validateProofOffline(proof, secret)` HS256 JWT verification (parity with other SDKs)
+- `consumeCredits(...)` overload with `referenceId`, `referenceType`, and `metadata` params
+- Cache TTL: in-memory verification cache now expires after 5 min (configurable via 4-arg constructor)
+
+### Changed
+- Internal cache backed by `ConcurrentHashMap` for thread safety
+
 ### Added
 - Environment scoping support: `environmentId` parameter in all license operations
 - Cache isolation between environments to prevent cross-environment cache collisions
