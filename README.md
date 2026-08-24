@@ -48,6 +48,31 @@ public class Main {
 
 ---
 
+## Entitlement Caching
+
+`LicenseFlowClient` includes a built-in `EntitlementCache` with TTL and offline grace period.
+
+```java
+LicenseFlowClient client = new LicenseFlowClient.Builder()
+    .baseUrl("https://api.licenseflow.dev")
+    .apiKey("lf_live_xxxxxxxxxxxx")
+    .jwtSecret("your-jwt-secret")
+    .cacheTtlSeconds(300)        // Cache TTL: 5 minutes
+    .offlineGraceSeconds(259200) // Offline grace: 72 hours
+    .build();
+
+// First call: live API, result cached in memory
+Map<String, Object> result = client.verify("XXXX-YYYY-ZZZZ-AAAA");
+
+// Within TTL: instantly served from memory cache
+Map<String, Object> result2 = client.verify("XXXX-YYYY-ZZZZ-AAAA");
+
+// Offline within grace: stale cache returned
+// Grace expired: OfflineLicenseException thrown
+```
+
+---
+
 ## API Reference
 
 ### Core Methods
@@ -141,7 +166,8 @@ try {
 
 - **OkHttp** — Efficient connection pooling and retries
 - **Gson** — Lightweight JSON serialization
-- **Thread-safe Caching** — In-memory verification cache
+- **Thread-safe Caching** — In-memory `EntitlementCache` with configurable TTL
+- **Offline Grace Period** — Operate up to 72h without network connectivity
 - **Ed25519** — Cryptographic offline license verification
 
 ## License
@@ -151,5 +177,5 @@ MIT
 ## Links
 
 - 📖 [Documentation](https://docs.licenseflow.dev)
-- 🐛 [Issues](https://github.com/licenseflow/java-sdk/issues)
+- 🐛 [Issues](https://github.com/LicenseFlow/sdk-java/issues)
 - 🏠 [Homepage](https://licenseflow.dev)
