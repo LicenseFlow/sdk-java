@@ -108,6 +108,37 @@ public class LicenseFlowClient {
         return res;
     }
 
+    /**
+     * Identity-based (keyless) entitlement resolution.
+     * Resolves everything an authenticated person is entitled to from their
+     * email alone — licenses they own plus any seats assigned to them.
+     */
+    public Map<String, Object> resolveForIdentity(String email, String productId, String environmentId) throws IOException {
+        String cacheKey = "identity:" + email + ":" + (productId != null ? productId : "all") + ":" + (environmentId != null ? environmentId : "default");
+        if (cache.containsKey(cacheKey)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cached = (Map<String, Object>) cache.get(cacheKey);
+            return cached;
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", email);
+        if (productId != null) payload.put("productId", productId);
+        if (environmentId != null) payload.put("environmentId", environmentId);
+
+        Map<String, Object> res = post("functions/v1/resolve-entitlements", payload);
+
+        if (Boolean.TRUE.equals(res.get("resolved"))) {
+            cache.put(cacheKey, res);
+        }
+
+        return res;
+    }
+
+    public Map<String, Object> resolveForIdentity(String email) throws IOException {
+        return resolveForIdentity(email, null, null);
+    }
+
     public boolean hasFeature(Map<String, Object> verification, String featureCode) {
         if (!Boolean.TRUE.equals(verification.get("valid")) || !verification.containsKey("entitlements")) {
             return false;
