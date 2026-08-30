@@ -115,10 +115,11 @@ public class LicenseFlowClient {
      */
     public Map<String, Object> resolveForIdentity(String email, String productId, String environmentId) throws IOException {
         String cacheKey = "identity:" + email + ":" + (productId != null ? productId : "all") + ":" + (environmentId != null ? environmentId : "default");
-        if (cache.containsKey(cacheKey)) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> cached = (Map<String, Object>) cache.get(cacheKey);
-            return cached;
+        CacheEntry cached = cache.get(cacheKey);
+        if (cached != null && cached.expiresAt > System.currentTimeMillis()) {
+            return cached.value;
+        } else if (cached != null) {
+            cache.remove(cacheKey);
         }
 
         Map<String, Object> payload = new HashMap<>();
@@ -129,7 +130,7 @@ public class LicenseFlowClient {
         Map<String, Object> res = post("functions/v1/resolve-entitlements", payload);
 
         if (Boolean.TRUE.equals(res.get("resolved"))) {
-            cache.put(cacheKey, res);
+            cache.put(cacheKey, new CacheEntry(res, System.currentTimeMillis() + cacheTtlMs));
         }
 
         return res;
